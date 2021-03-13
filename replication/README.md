@@ -1,4 +1,4 @@
-#README
+# README
 
 This is the replication package of the paper **"Where to Handle an Exception? Recommending Exception Handling Locations from a Global Perspective"**.
 
@@ -26,7 +26,7 @@ For more details about the package requiment, we provide a package list in `requ
   * Across-project recommendation: Run the `across.py` script in `train` directory as `python across.py --train_id=PROJECTID`.
   * Intra-project recommendation: Run the `intra.py` script in `train` directory as `python intra.py --train_id=PROJECTID`.
   * Intra-project+ recommendation: Run the `intraplus.py` script in `train` directory as `python intraplus.py --train_id=PROJECTID`.
-* Run the `top.py` script in `train` directory to get the recommendation result and the recommendation performance in terms of HitRate@1,2,3.
+* Run the `top.py` script in `train` directory to get the recommendation result and the recommendation performance in terms of SuccRate@1,2,3.
 * Other:
   * You can run the `calcImportance.py` script in `FeatImportanceAnalysis` directory to get the importance score of each type of featres with AutoGluon.
   * You can specify the training time limit and the output directory for AutoGluon through changing the value of `time_limites` and `oupput_directory` in `across.py`, `intra.py`, `intraplus.py`, and `calcImportance.py`.
