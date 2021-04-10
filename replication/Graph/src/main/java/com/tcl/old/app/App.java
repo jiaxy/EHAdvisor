@@ -1,21 +1,13 @@
-package com.tcl;
+package com.tcl.old.app;
 
-import com.tcl.entity.MethodEntity;
-import com.tcl.utils.Features;
-import com.tcl.utils.FileUtils;
-import com.tcl.utils.GBuilder;
-import com.tcl.utils.Parser;
-import org.jgrapht.alg.cycle.CycleDetector;
+import com.tcl.old.utils.OldFileUtils;
+import com.tcl.old.utils.GBuilder;
+import com.tcl.old.utils.Parser;
 import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
-import org.jgrapht.traverse.BreadthFirstIterator;
-import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.util.*;
-import java.util.stream.Collectors;
 
 
 public class App
@@ -65,7 +57,7 @@ public class App
 //
 //                FileUtils.toFullFeaturesFile(features, prefix + projectName + ".csv", i, projectName);
                 System.out.println("=======================================================");
-                FileUtils.callingLink(methodGraph, prefix + projectName + ".txt");
+                OldFileUtils.callingLink(methodGraph, prefix + projectName + ".txt");
 
             }
         }

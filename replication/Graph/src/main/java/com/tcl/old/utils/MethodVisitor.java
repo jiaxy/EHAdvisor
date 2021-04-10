@@ -1,26 +1,15 @@
-package com.tcl.utils;
+package com.tcl.old.utils;
 
-import com.tcl.entity.MethodEntity;
+import com.tcl.old.entity.MethodEntity;
 import org.eclipse.jdt.core.dom.*;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.*;
 
 public class MethodVisitor extends ASTVisitor {
 
     HashMap<String, HashSet<String>> classToSubClass;
-
-    private LinkedList<MethodEntity> list;
-
-    private CompilationUnit cu;
-
-    private LinkedList<String> imports = new LinkedList<>();
-
-    public MethodVisitor() {}
+    private final LinkedList<MethodEntity> list;
+    private final CompilationUnit cu;
 
     public MethodVisitor(LinkedList<MethodEntity> linkedList, CompilationUnit cu) {
         list = linkedList;
@@ -48,10 +37,10 @@ public class MethodVisitor extends ASTVisitor {
         for (MethodDeclaration method : methods) {
             getMethodInfo(node, method);
         }
-
         return super.visit(node);
     }
 
+    //method decl: signature, throw decl, para name
     private void getMethodInfo(TypeDeclaration node, MethodDeclaration method) {
         // 没有body，即只是一个方法声明
         if (method.getBody() == null) {
@@ -62,41 +51,24 @@ public class MethodVisitor extends ASTVisitor {
         MethodEntity entity = new MethodEntity();
         entity.setPackageName(cu.getPackage().getName().getFullyQualifiedName());
 
+        //params
         StringBuilder paraBuilder = new StringBuilder();
         List<String> para = new LinkedList<>();
-
         int size = method.parameters().size();
         for (int i = 0; i < size; ++i) {
             Object o = method.parameters().get(i);
-            StringBuilder tmp = new StringBuilder();
-
-
-
-
             String typeName = ((SingleVariableDeclaration) o).getType().resolveBinding().getErasure().getName();
-
             String fullTypeName = ((SingleVariableDeclaration) o).getType().resolveBinding().getErasure().getQualifiedName();
-
-
             if (i == size - 1 && method.isVarargs()) {
                 typeName = typeName + "[]";
             }
-
             String varName = ((SingleVariableDeclaration) o).getName().getFullyQualifiedName();
-
-            paraBuilder.append("@").append(typeName);
-
-
+            paraBuilder.append("@").append(typeName);//TODO fullTypeName
             para.add(fullTypeName);
         }
-
-
-
-
         entity.setParameters(para);
 
-
-
+        //throws decl
         Set<String> throwsType = new HashSet<>();
         for (Object o : method.thrownExceptionTypes()) {
             ITypeBinding binding = ((Type) o).resolveBinding();
@@ -108,25 +80,22 @@ public class MethodVisitor extends ASTVisitor {
         }
         entity.setThrowsName(throwsType);
 
+//        System.out.println("class name: " + node.resolveBinding().getName());
+//        System.out.println("method name: " + method.getName().getIdentifier());
         entity.setClassName(node.resolveBinding().getQualifiedName());
         entity.setMethodName(method.getName().getFullyQualifiedName());
-
-
         entity.setFullName(entity.getClassName()
                 + "$" + entity.getMethodName() + paraBuilder.toString());
 
-        Block block = method.getBody();
-
-
         entity.setCallingSets(new HashSet<>());
-
         entity.setCatchName(new HashSet<>());
-
+        Block block = method.getBody();
         getInfoFromBlock(block, entity);
 
         list.add(entity);
     }
 
+    //method body
     private void getInfoFromBlock(Block block, MethodEntity entity) {
         List statements = block.statements();
         for (Object s : statements) {
@@ -144,6 +113,7 @@ public class MethodVisitor extends ASTVisitor {
         return true;
     }
 
+    //stmt in method body, may recursively
     private void statementHandler(Statement statement, MethodEntity entity) {
         if (statement == null) return;
 
@@ -155,23 +125,19 @@ public class MethodVisitor extends ASTVisitor {
         } else if (statement instanceof ExpressionStatement) {
             expressionHandler(((ExpressionStatement) statement).getExpression(), entity);
         } else if (statement instanceof ConstructorInvocation) {
-
-
+            //TODO call ctor
             IMethodBinding binding = ((ConstructorInvocation) statement).resolveConstructorBinding();
             if (binding != null) {
                 StringBuilder tmp = new StringBuilder();
-                if (binding.getDeclaringClass() != null){
+                if (binding.getDeclaringClass() != null) {
                     var types = binding.getParameterTypes();
                     StringBuilder para = new StringBuilder();
                     for (var t : types) {
                         para.append("@").append(t.getErasure().getName());
                     }
-//                    System.out.println(para);
-
                     tmp.append(binding.getDeclaringClass().getErasure().getQualifiedName()).append("$").append(binding.getName()).append(para);
 //                    tmp.append(binding.getDeclaringClass().getErasure().getQualifiedName()).append("$").append(binding.getName());
                     entity.getCallingSets().add(tmp.toString());
-
                 }
 //                    tmp.append(binding.getDeclaringClass().getQualifiedName()).append("$").append(binding.getName()).append("$");
 //                for (var i : binding.getParameterTypes()) {
@@ -182,7 +148,6 @@ public class MethodVisitor extends ASTVisitor {
 //                    }
 //                }
             }
-
         } else if (statement instanceof DoStatement) {
             statementHandler(((DoStatement) statement).getBody(), entity);
             expressionHandler(((DoStatement) statement).getExpression(), entity);
@@ -195,6 +160,7 @@ public class MethodVisitor extends ASTVisitor {
             statementHandler(((IfStatement) statement).getThenStatement(), entity);
         } else if (statement instanceof SwitchStatement) {
             expressionHandler(((SwitchStatement) statement).getExpression(), entity);
+            //TODO stmts
         } else if (statement instanceof ThrowStatement) {
             // TODO 抛出的异常 有可能是RuntimeException
             var expression = ((ThrowStatement) statement).getExpression();
@@ -224,17 +190,13 @@ public class MethodVisitor extends ASTVisitor {
             List list = ((TryStatement) statement).catchClauses();
             for (Object o : list) {
                 statementHandler(((CatchClause) o).getBody(), entity);
-
-
                 if (((CatchClause) o).getException().getType().isUnionType()) {
                     UnionType unionType = (UnionType) ((CatchClause) o).getException().getType();
                     var types = unionType.types();
                     for (var t : types) {
                         entity.getCatchName().add(((Type) t).resolveBinding().getErasure().getQualifiedName());
                     }
-                }
-
-                else {
+                } else {
                     ITypeBinding binding = ((CatchClause) o).getException().getType().resolveBinding();
                     if (binding != null) {
                         entity.getCatchName().add(binding.getErasure().getQualifiedName());
@@ -242,7 +204,6 @@ public class MethodVisitor extends ASTVisitor {
                         entity.getCatchName().add(((CatchClause) o).getException().getName().getFullyQualifiedName());
                     }
                 }
-
             }
         } else if (statement instanceof WhileStatement) {
             expressionHandler(((WhileStatement) statement).getExpression(), entity);
@@ -277,12 +238,12 @@ public class MethodVisitor extends ASTVisitor {
         } else if (expression instanceof CastExpression) {
             expressionHandler(((CastExpression) expression).getExpression(), entity);
         } else if (expression instanceof ClassInstanceCreation) {
+            //new obj
             expressionHandler(((ClassInstanceCreation) expression).getExpression(), entity);
             IMethodBinding binding = ((ClassInstanceCreation) expression).resolveConstructorBinding();
             if (binding != null) {
                 ITypeBinding declaringClass = binding.getDeclaringClass();
                 if (binding.getName() == null || binding.getName().equals("")) {
-
                     var anonymousClassDeclaration = ((ClassInstanceCreation) expression).getAnonymousClassDeclaration();
                     var list = anonymousClassDeclaration.bodyDeclarations();
                     for (Object o : list) {
@@ -290,8 +251,8 @@ public class MethodVisitor extends ASTVisitor {
                             statementHandler(((MethodDeclaration) o).getBody(), entity);
                         }
                     }
-                }
-                else {
+                } else {
+                    //TODO new?
                     StringBuilder output = new StringBuilder();
                     output.append(declaringClass.getErasure().getQualifiedName()).append("$").append(binding.getDeclaringClass().getErasure().getName());
                     var parameters = binding.getParameterTypes();
@@ -336,21 +297,17 @@ public class MethodVisitor extends ASTVisitor {
                         classToSubClass.put(pName, new HashSet<>());
                     }
                     classToSubClass.get(pName).add(binding.getDeclaringClass().getErasure().getQualifiedName());
-
                 }
                 if (binding.getDeclaringClass().getInterfaces() != null) {
                     for (ITypeBinding t : binding.getDeclaringClass().getInterfaces()) {
-
                         if (!classToSubClass.containsKey(t.getQualifiedName()) && (!binding.getDeclaringClass().getQualifiedName().startsWith("java") || true)) {
                             classToSubClass.put(t.getErasure().getQualifiedName(), new HashSet<>());
                         }
-
                         if (!binding.getDeclaringClass().getQualifiedName().startsWith("java") || true)
                             classToSubClass.get(t.getErasure().getQualifiedName()).add(binding.getDeclaringClass().getErasure().getQualifiedName());
                     }
                 }
-            }
-            else {
+            } else {
                 SimpleName name = ((MethodInvocation) expression).getName();
                 entity.getCallingSets().add("unknown$" + name);
             }
