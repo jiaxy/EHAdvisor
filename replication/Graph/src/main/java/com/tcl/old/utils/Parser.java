@@ -1,6 +1,6 @@
-package com.tcl.utils;
+package com.tcl.old.utils;
 
-import com.tcl.entity.MethodEntity;
+import com.tcl.old.entity.MethodEntity;
 import lombok.Getter;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
@@ -26,9 +26,8 @@ public class Parser {
 
 
     /**
-     *
      * @param classpath representing the project path
-     * @param src could be same to the classpath
+     * @param src       could be same to the classpath
      */
     private void setEnvironment(String[] classpath, String[] src) {
         parser.setResolveBindings(true);
@@ -44,13 +43,12 @@ public class Parser {
     }
 
     /**
-     *
      * @param path path of a single java file
      * @throws IOException path not exists
      */
     public void parseJavaFile(String path) throws IOException {
         parser.setUnitName(path);
-        parser.setSource(FileUtils.fileToCharArray(path));
+        parser.setSource(OldFileUtils.fileToCharArray(path));
         CompilationUnit cu = null;
         try {
             cu = (CompilationUnit) parser.createAST(null);
@@ -61,22 +59,16 @@ public class Parser {
         MethodVisitor visitor = new MethodVisitor(list, cu, classToSubClass);
 //        visitor.parser = this;
         cu.accept(visitor);
-
         cu.recordModifications();
     }
 
     /**
-     *
      * @param path the project path
      * @throws IOException file path not exist
      */
     public void parseProject(String path, String jarPath) throws IOException {
-
-        LinkedList<String> classPath = FileUtils.getClassPath(path);
-
+        List<String> classPath = OldFileUtils.getClassPaths(path);
         String[] src = {path};
-
-
         String property = System.getProperty("java.class.path", ".");
         String[] split = property.split(File.pathSeparator);
         classPath.addAll(Arrays.asList(split));
@@ -87,26 +79,32 @@ public class Parser {
         }
 
         String[] cp = classPath.toArray(new String[0]);
-
-
 //        String[] cp = new String[split.length + 2];
 //        System.arraycopy(split, 0, cp, 0, split.length);
 //        cp[cp.length - 2] = path;
 //        cp[cp.length - 1] = System.getProperty("java.home");
 
-        LinkedList<String> allJavaFiles = FileUtils.getAllJavaFiles(src[0]);
-        for (String s : allJavaFiles) {
-            setEnvironment(cp, src);
-            try {
-                parseJavaFile(s);
-            } catch (Exception e) {
-            }
-        }
+        List<String> allJavaFiles = OldFileUtils.getAllJavaFiles(src[0]);
+
+//        for (String s : allJavaFiles) {
+//            setEnvironment(cp, src);
+//            try {
+//                parseJavaFile(s);
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//        }
+
+        OldFileASTRequestor requestor = new OldFileASTRequestor();
+        requestor.list = list;
+        requestor.classToSubClass = classToSubClass;
+        setEnvironment(cp, src);
+        String[] arr2 = {};
+        parser.createASTs(allJavaFiles.toArray(new String[0]), null, arr2, requestor, null);
 
         for (MethodEntity entity : list) {
             nameToEntity.put(entity.getFullName(), entity);
         }
-
     }
 }
 
