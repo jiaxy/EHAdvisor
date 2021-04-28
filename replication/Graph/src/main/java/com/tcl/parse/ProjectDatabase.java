@@ -2,10 +2,7 @@ package com.tcl.parse;
 
 import com.tcl.entity.MethodInfo;
 import com.tcl.entity.MethodSignature;
-import com.tcl.graph.call.CallChain;
-import com.tcl.graph.call.CallEdge;
-import com.tcl.graph.call.CallEdgeDyn;
-import com.tcl.graph.call.ChainEntry;
+import com.tcl.graph.call.*;
 import com.tcl.graph.inheritance.InheritanceGraph;
 import com.tcl.utils.JdtUtils;
 import org.eclipse.jdt.core.dom.IMethodBinding;
@@ -120,6 +117,22 @@ public class ProjectDatabase {
         return chains;
     }
 
+    @Nonnull
+    public List<PredUnit> predUnitsFromSource(@Nonnull MethodSignature source) {
+        var chains = chainsFromSource(source);
+        //chains group by exception
+        var chainsByEx = new HashMap<String, ArrayList<CallChain>>();
+        for (var chain : chains) {
+            chainsByEx.putIfAbsent(chain.getException(), new ArrayList<>());
+            chainsByEx.get(chain.getException()).add(chain);
+        }
+        var predUnits = new ArrayList<PredUnit>();
+        for (var chainsOfEx : chainsByEx.values()) {
+            predUnits.addAll(chainsOfExToPredUnits(chainsOfEx));
+        }
+        return predUnits;
+    }
+
     @Deprecated
     @Nonnull
     public List<CallChain> exactlyAllChainsFromSource(@Nonnull MethodSignature source) {
@@ -136,6 +149,7 @@ public class ProjectDatabase {
         return result;
     }
 
+    @Deprecated
     private void dfs(MethodSignature u,
                      List<MethodSignature> currentChain,
                      Set<MethodSignature> methodsInCurrent,
@@ -161,7 +175,7 @@ public class ProjectDatabase {
     }
 
     /**
-     * 1. Has throw stmts in body
+     * 1. Contains throw stmts in body
      * 2. Is a method in standard library and has throws decl
      */
     public boolean isExceptionSource(@Nonnull MethodSignature method) {
@@ -178,6 +192,28 @@ public class ProjectDatabase {
             isJdk = pkg.startsWith("java") || pkg.startsWith("javax");
         }
         return isJdk && method.getThrowsDeclaration().length > 0;
+    }
+
+    public boolean isExceptionType(@Nonnull String clsName) {
+        for (ITypeBinding x = classToBinding.get(clsName);
+             x != null; x = x.getSuperclass()) {
+            String name = JdtUtils.toClassName(x);
+            if ("java.lang.Exception".equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isThrowableType(@Nonnull String clsName) {
+        for (ITypeBinding x = classToBinding.get(clsName);
+             x != null; x = x.getSuperclass()) {
+            String name = JdtUtils.toClassName(x);
+            if ("java.lang.Throwable".equals(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -272,5 +308,103 @@ public class ProjectDatabase {
             chain.add(new ChainEntry(chainWithHead.get(i), false));
         }
         return new CallChain(chainWithHead.get(0), chain);
+    }
+
+    private static List<PredUnit> chainToPredUnits(@Nonnull CallChain chain) {
+        //multi-map
+        var clsMethods = new HashMap<String, LinkedHashSet<MethodSignature>>();
+        var pkgClasses = new HashMap<String, LinkedHashSet<String>>();
+        var packageSet = new LinkedHashSet<String>();
+        for (var entry : chain.getChain()) {
+            String className = entry.getMethod().getQualifiedClassName();
+            clsMethods.putIfAbsent(className, new LinkedHashSet<>());
+            clsMethods.get(className).add(entry.getMethod());
+            String pkg = entry.getMethod().getPackageName().orElse(null);
+            pkgClasses.putIfAbsent(pkg, new LinkedHashSet<>());
+            pkgClasses.get(pkg).add(entry.getMethod().getQualifiedClassName());
+            packageSet.add(pkg);
+        }
+        var methodPos = new LinkedHashMap<MethodSignature, MethodPos>();
+        chain.getChain().forEach(
+                entry -> methodPos.put(entry.getMethod(), new MethodPos()));
+        //method-top, method-bottom
+        for (String className : clsMethods.keySet()) {
+            var methodSet = clsMethods.get(className);
+            int i = 0;
+            for (var method : methodSet) {
+                methodPos.get(method).methodTop = i;
+                methodPos.get(method).methodBottom = methodSet.size() - 1 - i;
+                i++;
+            }
+        }
+        //class-top, class-bottom
+        var clsTopDict = new HashMap<String, Integer>();
+        var clsBottomDict = new HashMap<String, Integer>();
+        for (String pkg : pkgClasses.keySet()) {
+            var classSet = pkgClasses.get(pkg);
+            int i = 0;
+            for (String className : classSet) {
+                clsTopDict.put(className, i);
+                clsBottomDict.put(className, classSet.size() - 1 - i);
+                i++;
+            }
+        }
+        for (var method : methodPos.keySet()) {
+            methodPos.get(method).classTop =
+                    clsTopDict.get(method.getQualifiedClassName());
+            methodPos.get(method).classBottom =
+                    clsBottomDict.get(method.getQualifiedClassName());
+        }
+        //package-top, package-bottom
+        var pkgTopDict = new HashMap<String, Integer>();
+        var pkgBottomDict = new HashMap<String, Integer>();
+        int i = 0;
+        for (String pkg : packageSet) {
+            pkgTopDict.put(pkg, i);
+            pkgBottomDict.put(pkg, packageSet.size() - 1 - i);
+            i++;
+        }
+        for (var method : methodPos.keySet()) {
+            methodPos.get(method).packageTop =
+                    pkgTopDict.get(method.getPackageName().orElse(null));
+            methodPos.get(method).packageBottom =
+                    pkgBottomDict.get(method.getPackageName().orElse(null));
+        }
+        //chain-top, chain-bottom
+        int chainLen = chain.getChain().size();
+        for (i = 0; i < chainLen; i++) {
+            MethodSignature method = chain.getChain().get(i).getMethod();
+            methodPos.get(method).chainTop = i;
+            methodPos.get(method).chainBottom = chainLen - 1 - i;
+        }
+        //build predict units
+        var predUnits = new ArrayList<PredUnit>();
+        for (var entry : chain.getChain()) {
+            var unit = new PredUnit();
+            unit.throwFrom = chain.getThrowFrom().getSimpleSignature().toString();
+            unit.exception = chain.getException();
+            unit.simpleMethod = entry.getMethod().getSimpleSignature().toString();
+            unit.handled = entry.isHandled();
+            unit.position = methodPos.get(entry.getMethod());
+            predUnits.add(unit);
+        }
+        return predUnits;
+    }
+
+    //all chains should have same throwFrom and some exception
+    private static List<PredUnit> chainsOfExToPredUnits(
+            @Nonnull Iterable<CallChain> chainsOfEx) {
+        var methodPred = new HashMap<String, PredUnit>();
+        for (var chain : chainsOfEx) {
+            List<PredUnit> units = chainToPredUnits(chain);
+            for (var unit : units) {
+                String method = unit.simpleMethod;
+                if (!methodPred.containsKey(method)
+                        || methodPred.get(method).position.chainBottom > unit.position.chainBottom) {
+                    methodPred.put(method, unit);
+                }
+            }
+        }
+        return new ArrayList<>(methodPred.values());
     }
 }

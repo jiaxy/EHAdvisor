@@ -152,13 +152,16 @@ public class MethodInfoCollector {
             stmtInfo.update(infoInStatement(syncStmt.getBody()));
         } else if (statement instanceof ThrowStatement) {
             var throwStmt = (ThrowStatement) statement;
-            InfoEntry throwInfo = infoInExpression(throwStmt.getExpression());
-            stmtInfo.update(throwInfo);
-            MethodSignature[] callings = throwInfo.callings.toArray(new MethodSignature[0]);
-            if (callings.length > 0) {
-                MethodSignature ctor = callings[0];
-                assert stmtInfo.callings.contains(ctor);
-                stmtInfo.throwsInBody.add(ctor.getQualifiedClassName());
+            if (throwStmt.getExpression() instanceof ClassInstanceCreation) {
+                var creationExpr = (ClassInstanceCreation) throwStmt.getExpression();
+                stmtInfo.update(infoInExpression(creationExpr.getExpression()));
+                ITypeBinding typeBinding = creationExpr.resolveTypeBinding();
+                if (typeBinding != null && JdtUtils.isCompatible(
+                        typeBinding, "java.lang.Throwable")) {
+                    String exName = typeBinding.getErasure().getQualifiedName();
+                    stmtInfo.throwsInBody.add(exName);
+                    stmtInfo.classToBinding.put(exName, typeBinding);
+                }
             }
         } else if (statement instanceof TryStatement) {
             var tryStmt = (TryStatement) statement;

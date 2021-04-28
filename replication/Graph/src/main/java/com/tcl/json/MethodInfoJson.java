@@ -9,12 +9,14 @@ import java.util.Optional;
 public class MethodInfoJson {
     private MethodJson method;
     private String javaDoc;
-    private List<String> paramNames = new ArrayList<>();
+    private List<String> paramNames;
+    private boolean exceptionSource;
 
-    public MethodInfoJson(MethodInfo info) {
+    public MethodInfoJson(MethodInfo info, boolean exceptionSource) {
         method = new MethodJson(info.signature);
         javaDoc = info.javaDoc;
         paramNames = info.paramNames;
+        this.exceptionSource = exceptionSource;
     }
 
     public MethodJson getMethod() {
@@ -39,5 +41,13 @@ public class MethodInfoJson {
 
     public void setParamNames(List<String> paramNames) {
         this.paramNames = paramNames;
+    }
+
+    public boolean isExceptionSource() {
+        return exceptionSource;
+    }
+
+    public void setExceptionSource(boolean exceptionSource) {
+        this.exceptionSource = exceptionSource;
     }
 }

@@ -2,6 +2,7 @@ package com.tcl.json;
 
 import com.tcl.graph.call.ChainEntry;
 
+@Deprecated
 public class ChainEntryJson {
     private MethodJson method;
     private boolean handled;

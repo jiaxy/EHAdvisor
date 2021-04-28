@@ -5,6 +5,7 @@ import com.tcl.graph.call.CallChain;
 import java.util.ArrayList;
 import java.util.List;
 
+@Deprecated
 public class CallChainJson {
     private MethodJson throwFrom;
     private String exception;

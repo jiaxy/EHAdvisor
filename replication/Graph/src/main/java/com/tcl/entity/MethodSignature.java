@@ -35,25 +35,25 @@ public class MethodSignature {
         if (isStatic) {
             sb.append("static ");
         }
-        sb.append(simpleSignature.toString());
+        sb.append(simpleSignature);
         var sj = new StringJoiner(", ");
         throwsDeclaration.forEach(sj::add);
         if (sj.length() > 0) {
-            sb.append(" throws ").append(sj.toString());
+            sb.append(" throws ").append(sj);
         }
         signature = sb.toString();
     }
 
     @Override
     public int hashCode() {
-        return signature.hashCode();
+        return simpleSignature.hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof MethodSignature) {
             var other = (MethodSignature) obj;
-            return signature.equals(other.signature);
+            return simpleSignature.equals(other.simpleSignature);
         }
         return false;
     }

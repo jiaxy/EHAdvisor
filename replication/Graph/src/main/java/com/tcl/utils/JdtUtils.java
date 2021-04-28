@@ -11,14 +11,16 @@ public class JdtUtils {
     @Nonnull
     public static SimpleMethodSignature bindingToSimpleMethod(@Nonnull IMethodBinding binding) {
         Objects.requireNonNull(binding, "binding");
+        //Without `getMethodDeclaration`, there will be some problems with generic method
+        binding = binding.getMethodDeclaration();
         var builder = new SimpleSignatureBuilder();
         if (!binding.isConstructor()) {
-            builder.setReturnType(binding.getReturnType().getQualifiedName());
+            builder.setReturnType(binding.getReturnType().getErasure().getQualifiedName());
         }
         assert binding.getDeclaringClass() != null;
         builder.setQualifiedClassName(binding.getDeclaringClass().getErasure().getQualifiedName());
-        //For a generic method, binding.getName() will get a name with angle brackets
-        //So use binding.getMethodDeclaration().getName() instead
+        //For a generic method, `binding.getName()` will get a name with angle brackets
+        //So use `binding.getMethodDeclaration().getName()` instead
         builder.setMethodName(binding.getMethodDeclaration().getName());
         int pNum = binding.getParameterTypes().length;
         for (int i = 0; i < pNum; i++) {
@@ -207,6 +209,21 @@ public class JdtUtils {
         }
         Collections.addAll(supers, subclass.getInterfaces());
         return supers.stream().anyMatch(cls -> isCompatible(cls, superclass));
+    }
+
+    public static boolean isCompatible(@Nonnull ITypeBinding subclass,
+                                       @Nonnull String superclassName) {
+        Objects.requireNonNull(subclass, "subclass");
+        Objects.requireNonNull(superclassName, "superclassName");
+        if (toClassName(subclass).equals(superclassName)) {
+            return true;
+        }
+        var supers = new ArrayList<ITypeBinding>();
+        if (subclass.getSuperclass() != null) {
+            supers.add(subclass.getSuperclass());
+        }
+        Collections.addAll(supers, subclass.getInterfaces());
+        return supers.stream().anyMatch(cls -> isCompatible(cls, superclassName));
     }
 
     private JdtUtils() {
