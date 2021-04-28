@@ -1,12 +1,15 @@
 package com.tcl.utils;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.tcl.entity.MethodSignature;
 import com.tcl.graph.call.CallEdge;
 import com.tcl.graph.call.CallEdgeDyn;
+import com.tcl.graph.call.ExceptionMethodPair;
 import com.tcl.json.CallChainJson;
 import com.tcl.json.InheritJson;
 import com.tcl.json.MethodInfoJson;
+import com.tcl.json.PredictUnitJson;
 import com.tcl.parse.ProjectDatabase;
 import org.eclipse.jdt.core.dom.ITypeBinding;
 
@@ -16,9 +19,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class FileUtils {
@@ -56,22 +57,47 @@ public class FileUtils {
             @Nonnull ProjectDatabase db, @Nonnull String folder) throws IOException {
         Files.createDirectories(Paths.get(folder));
         outputMethodInfos(db, folder + "\\method-infos.json");
-        outputInheritance(db, folder + "\\class-inherit.json");
+        outputInheritance(db, folder + "\\exception-inherit.json");
+        outputPredictUnitsCsv(db, folder + "\\predict-units.csv");
+    }
+
+    @Deprecated
+    public static void outputProjectToFolder1(
+            @Nonnull ProjectDatabase db, @Nonnull String folder) throws IOException {
+        Files.createDirectories(Paths.get(folder));
+        outputMethodInfos(db, folder + "\\method-infos.json");
+        outputInheritance(db, folder + "\\exception-inherit.json");
         outputCallChains(db, folder + "\\call-chains.json");
+    }
+
+    @Deprecated
+    public static void outputProjectToFolder2(
+            @Nonnull ProjectDatabase db, @Nonnull String folder) throws IOException {
+        Files.createDirectories(Paths.get(folder));
+        outputMethodInfos(db, folder + "\\method-infos.json");
+        outputInheritance(db, folder + "\\exception-inherit.json");
+//        outputPredictUnits(db, folder + "\\predict-units.json");
+        outputPredictUnitsCsv1(db, folder + "\\predict-units.csv");
     }
 
     public static void outputMethodInfos(
             @Nonnull ProjectDatabase db, @Nonnull String filepath) throws IOException {
-        var methodInfos = db.methodToInfo.values().stream()
-                .map(MethodInfoJson::new).collect(Collectors.toList());
-        String s = JSON.toJSONString(methodInfos);
-        writeToFile(filepath, s);
+        var methodInfos = new ArrayList<MethodInfoJson>();
+        for (var method : db.methodToInfo.keySet()) {
+            var info = db.methodToInfo.get(method);
+            methodInfos.add(new MethodInfoJson(info, db.isExceptionSource(method)));
+        }
+        JSON.writeJSONString(createWriter(filepath), methodInfos,
+                SerializerFeature.PrettyFormat);
     }
 
     public static void outputInheritance(
             @Nonnull ProjectDatabase db, @Nonnull String filepath) throws IOException {
         var clsList = new ArrayList<InheritJson>();
         for (var clsName : db.classToBinding.keySet()) {
+            if (!db.isThrowableType(clsName)) {
+                continue;
+            }
             var json = new InheritJson();
             json.setName(clsName);
             for (ITypeBinding x = db.classToBinding.get(clsName);
@@ -80,10 +106,62 @@ public class FileUtils {
             }
             clsList.add(json);
         }
-        String s = JSON.toJSONString(clsList);
-        writeToFile(filepath, s);
+        JSON.writeJSONString(createWriter(filepath), clsList,
+                SerializerFeature.PrettyFormat);
     }
 
+    public static void outputPredictUnitsCsv(
+            @Nonnull ProjectDatabase db, @Nonnull String filepath) throws IOException {
+        try (FileWriter writer = createWriter(filepath)) {
+            //(exception, simpleMethod) will be unique in csv
+            var pairSet = new HashSet<ExceptionMethodPair>();
+            String header =
+                    "throwFrom," +
+                            "exception," +
+                            "simpleMethod," +
+                            "methodTop," +
+                            "methodBottom," +
+                            "classTop," +
+                            "classBottom," +
+                            "packageTop," +
+                            "packageBottom," +
+                            "chainTop," +
+                            "chainBottom," +
+                            "handled";
+            writer.write(header + '\n');
+            for (var method : db.methodToInfo.keySet()) {
+                if (!db.isExceptionSource(method)) {
+                    continue;
+                }
+                for (var unit : db.predUnitsFromSource(method)) {
+                    var exMethod = new ExceptionMethodPair(unit.exception, unit.simpleMethod);
+                    if (pairSet.contains(exMethod)) {
+                        continue;
+                    }
+                    pairSet.add(exMethod);
+//                    if (pairSet.size() % 100 == 1) {
+//                        System.out.println("pairSet.size = " + pairSet.size());
+//                    }
+                    var sj = new StringJoiner(",");
+                    sj.add('"' + unit.throwFrom + '"')
+                            .add(unit.exception)
+                            .add('"' + unit.simpleMethod + '"')
+                            .add(String.valueOf(unit.position.methodTop))
+                            .add(String.valueOf(unit.position.methodBottom))
+                            .add(String.valueOf(unit.position.classTop))
+                            .add(String.valueOf(unit.position.classBottom))
+                            .add(String.valueOf(unit.position.packageTop))
+                            .add(String.valueOf(unit.position.packageBottom))
+                            .add(String.valueOf(unit.position.chainTop))
+                            .add(String.valueOf(unit.position.chainBottom))
+                            .add(unit.handled ? "1" : "0");
+                    writer.write(sj.toString() + '\n');
+                }
+            }
+        }
+    }
+
+    @Deprecated
     public static void outputCallChains(
             @Nonnull ProjectDatabase db, @Nonnull String filepath) throws IOException {
         var chainList = new ArrayList<CallChainJson>();
@@ -94,20 +172,89 @@ public class FileUtils {
             var chainsFromSrc = db.chainsFromSource(method);
             chainsFromSrc.forEach(chain -> chainList.add(new CallChainJson(chain)));
         }
-        String s = JSON.toJSONString(chainList);
-        writeToFile(filepath, s);
+        JSON.writeJSONString(createWriter(filepath), chainList,
+                SerializerFeature.PrettyFormat);
     }
 
-    public static void writeToFile(
-            @Nonnull String filepath, String content) throws IOException {
+    @Deprecated
+    public static void outputPredictUnitsJson(
+            @Nonnull ProjectDatabase db, @Nonnull String filepath) throws IOException {
+        var units = new ArrayList<PredictUnitJson>();
+        for (var method : db.methodToInfo.keySet()) {
+            if (!db.isExceptionSource(method)) {
+                continue;
+            }
+            var chainsFromSrc = db.chainsFromSource(method);
+            chainsFromSrc.forEach(
+                    chain -> units.addAll(
+                            PredictUnitJson.predictUnitsFromChain(chain)));
+        }
+        JSON.writeJSONString(createWriter(filepath), units,
+                SerializerFeature.PrettyFormat);
+    }
+
+    @Deprecated
+    public static void outputPredictUnitsCsv1(
+            @Nonnull ProjectDatabase db, @Nonnull String filepath) throws IOException {
+        try (FileWriter writer = createWriter(filepath)) {
+            String header = "chainId, " +
+                    "throwFrom, " +
+                    "exception, " +
+                    "simpleMethod, " +
+                    "methodBottom, " +
+                    "methodTop, " +
+                    "classBottom, " +
+                    "classTop, " +
+                    "packageBottom, " +
+                    "packageTop, " +
+                    "posInChain, " +
+                    "handled";
+            writer.write(header + '\n');
+            int chainNum = 0;
+            for (var method : db.methodToInfo.keySet()) {
+                if (!db.isExceptionSource(method)) {
+                    continue;
+                }
+                for (var chain : db.chainsFromSource(method)) {
+                    List<PredictUnitJson> units = PredictUnitJson.predictUnitsFromChain(chain);
+                    for (var unit : units) {
+                        var sj = new StringJoiner(", ");
+                        sj.add(String.valueOf(chainNum))
+                                .add('"' + unit.getSource().getThrowFrom() + '"')
+                                .add(unit.getSource().getException())
+                                .add('"' + unit.getChainEntry().getSimpleMethod() + '"')
+                                .add(String.valueOf(unit.getChainEntry().getMethodBottom()))
+                                .add(String.valueOf(unit.getChainEntry().getMethodTop()))
+                                .add(String.valueOf(unit.getChainEntry().getClassBottom()))
+                                .add(String.valueOf(unit.getChainEntry().getClassTop()))
+                                .add(String.valueOf(unit.getChainEntry().getPackageBottom()))
+                                .add(String.valueOf(unit.getChainEntry().getPackageTop()))
+                                .add(String.valueOf(unit.getChainEntry().getPosInChain()))
+                                .add(unit.getChainEntry().isHandled() ? "1" : "0");
+                        writer.write(sj.toString() + '\n');
+                    }
+                    chainNum++;
+                }
+            }
+        }
+    }
+
+    @Nonnull
+    public static FileWriter createWriter(@Nonnull String filepath)
+            throws IOException {
         var file = new File(filepath);
         if (!file.exists()) {
             boolean b = file.createNewFile();
             assert b;
         }
-        var writer = new FileWriter(file);
-        writer.write(content);
-        writer.close();
+        return new FileWriter(file);
+    }
+
+    public static void writeToFile(
+            @Nonnull String filepath, String content) throws IOException {
+        try (FileWriter writer = createWriter(filepath)) {
+            writer.write(content);
+        }
     }
 
     @Nonnull
@@ -149,6 +296,14 @@ public class FileUtils {
             }
         }
         return re;
+    }
+
+    public static void mkDirsIfNotExist(String dirPath) {
+        var dir = new File(dirPath);
+        if (!dir.exists()) {
+            boolean b = dir.mkdirs();
+            assert b;
+        }
     }
 
     private FileUtils() {

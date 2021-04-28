@@ -15,8 +15,8 @@ public class SimpleMethodSignature {
     private final String className;
     private final String methodName;
     private final String[] paramTypes;
-    private final String signature;
     private final String nameAndParams;
+    private final String hashSignature;
 
     public SimpleMethodSignature(@Nullable String returnType,
                                  @Nullable String packageName,
@@ -29,9 +29,9 @@ public class SimpleMethodSignature {
         this.packageName = packageName;
         this.className = className;
         this.methodName = methodName;
-        if (returnType == null && !className.equals(methodName)) {
-            throw new IllegalArgumentException("Not a constructor and returnType is null");
-        }
+//        if (returnType == null && !className.equals(methodName)) {
+//            throw new IllegalArgumentException("Not a constructor and returnType is null");
+//        }
         this.returnType = returnType;
         var params = new ArrayList<String>();
         for (String param : paramTypes) {
@@ -42,30 +42,27 @@ public class SimpleMethodSignature {
         //construct signature
         var sj = new StringJoiner(", ");
         paramTypes.forEach(sj::add);
-        var sb = new StringBuilder();
-        if (returnType != null) {
-            sb.append(returnType).append(' ');
-        }
-        sb.append(getQualifiedMethodName()).append('(').append(sj.toString()).append(')');
-        signature = sb.toString();
-        nameAndParams = methodName + '(' + sj.toString() + ')';
+        nameAndParams = methodName + '(' + sj + ')';
+        hashSignature = getQualifiedMethodName() + '(' + sj + ')';
     }
 
     @Override
     public String toString() {
-        return signature;
+        return (returnType != null)
+                ? returnType + ' ' + hashSignature
+                : hashSignature;
     }
 
     @Override
     public int hashCode() {
-        return signature.hashCode();
+        return hashSignature.hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof SimpleMethodSignature) {
             var other = (SimpleMethodSignature) obj;
-            return signature.equals(other.signature);
+            return hashSignature.equals(other.hashSignature);
         }
         return false;
     }
