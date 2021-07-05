@@ -1,6 +1,6 @@
-package com.tcl.utils;
+package com.tcl.old.utils;
 
-import com.tcl.entity.MethodEntity;
+import com.tcl.old.entity.MethodEntity;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jgrapht.alg.connectivity.ConnectivityInspector;
@@ -19,16 +19,16 @@ public class Features {
     @Getter
     private HashMap<String, InnerInfo> innerClassDist = new HashMap<>();
 
-    static class InnerInfo {
+    public static class InnerInfo {
         InnerInfo() {}
-        InnerInfo(String name) {
+        public InnerInfo(String name) {
             this.name = name;
         }
-        String name;
-        LinkedHashMap<String, Integer> dist = new LinkedHashMap<>();
-        int maxDist = 0;
-        int curDist;
-        String lastInsert;
+        public String name;
+        public LinkedHashMap<String, Integer> dist = new LinkedHashMap<>();
+        public int maxDist = 0;
+        public int curDist;
+        public String lastInsert;
     }
 
     /**

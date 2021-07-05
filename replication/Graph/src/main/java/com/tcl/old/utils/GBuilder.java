@@ -1,13 +1,11 @@
-package com.tcl.utils;
+package com.tcl.old.utils;
 
-import com.tcl.entity.MethodEntity;
+import com.tcl.old.entity.MethodEntity;
 import lombok.Getter;
 import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.*;
 
 public class GBuilder {
@@ -33,18 +31,12 @@ public class GBuilder {
     public DefaultDirectedGraph<String, DefaultEdge> buildMethodGraph(Parser parser) {
         LinkedList<MethodEntity> list = parser.getList();
         methodG = new DefaultDirectedGraph<>(DefaultEdge.class);
-
-
-
         for (MethodEntity m : list) {
             if (!methodG.containsVertex(m.getFullName())) {
                 methodG.addVertex(m.getFullName());
             }
             if (m.getCallingSets() != null && m.getCallingSets().size() > 0) {
                 for (var inner : m.getCallingSets()) {
-
-
-
                     if (inner.startsWith("java.") || inner.startsWith("javax.")) continue;
                     if (!methodG.containsVertex(inner)) {
                         methodG.addVertex(inner);
@@ -52,7 +44,6 @@ public class GBuilder {
                     methodG.addEdge(m.getFullName(), inner);
                 }
             } else {
-
                 if ((m.getCatchName() != null && m.getCatchName().size() > 0)
                         || (m.getThrowsName() != null && m.getThrowsName().size() > 0)) {
                     methodG.addVertex(m.getFullName());

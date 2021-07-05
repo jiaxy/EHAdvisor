@@ -8,6 +8,8 @@ This is the archieve repository for the ICPC'21 research paper [**"Where to Hand
 
 Please refer to the `README.md` in each of the two folders for the detailed introduction and usage guidance for them.
 
+*(We are refactoring our code for better tool implementation. So the codes in `master` branch are keeping improving and updating. For experimental replication of the paper, please refer to the `icpc-paper` branch.)*
+
 ### Citation
 ```bib
 @INPROCEEDINGS{ICPC21EHAdvisor,
