@@ -6,6 +6,6 @@ nltk==3.5
 autogluon==0.0.15
 matplotlib==3.3.3
 Keras==2.4.3
-numpy==1.19.5
+numpy==1.22.0
 imblearn==0.0
 scikit_learn==0.24.1
