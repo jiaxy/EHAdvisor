@@ -2,7 +2,7 @@ gensim==3.8.3
 pandas==1.2.1
 imbalanced_learn==0.7.0
 pandas_profiling==2.10.0
-nltk==3.5
+nltk==3.6.6
 autogluon==0.0.15
 matplotlib==3.3.3
 Keras==2.4.3
